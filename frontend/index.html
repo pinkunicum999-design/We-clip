@@ -1,5 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WeClip AI</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 12px;
+      width: 400px;
+      text-align: center;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    input {
+      margin-bottom: 15px;
+    }
+
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .upload {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .generate {
+      background: #10b981;
+      color: white;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 14px;
+    }
+
+    .loader {
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🎬 WeClip AI</h1>
+
+  <input type="file" id="fileInput" />
+
+  <div>
+    <button class="upload" onclick="upload()">Upload</button>
+    <button class="generate" onclick="generate()">Generate</button>
+  </div>
+
+  <div id="status">Idle</div>
+</div>
+
 <script>
-const API_URL = "we-clip-production.up.railway.app";
+const API_URL = "PASTE_YOUR_RAILWAY_URL_HERE";
 
 let uploadedPath = "";
 let jobId = null;
@@ -15,17 +90,22 @@ async function upload() {
   const formData = new FormData();
   formData.append("file", file);
 
-  document.getElementById("status").innerText = "Uploading...";
+  setStatus("Uploading...");
 
-  const res = await fetch(`${API_URL}/upload`, {
-    method: "POST",
-    body: formData
-  });
+  try {
+    const res = await fetch(`${API_URL}/upload`, {
+      method: "POST",
+      body: formData
+    });
 
-  const data = await res.json();
-  uploadedPath = data.file_path;
+    const data = await res.json();
+    uploadedPath = data.file_path;
 
-  document.getElementById("status").innerText = "Uploaded!";
+    setStatus("✅ Uploaded");
+  } catch (err) {
+    setStatus("❌ Upload failed");
+    console.error(err);
+  }
 }
 
 async function generate() {
@@ -34,39 +114,56 @@ async function generate() {
     return;
   }
 
-  document.getElementById("status").innerText = "Processing...";
+  setStatus("⚙️ Processing...");
 
-  const res = await fetch(`${API_URL}/generate?file_path=${uploadedPath}`, {
-    method: "POST"
-  });
+  try {
+    const res = await fetch(`${API_URL}/generate?file_path=${uploadedPath}`, {
+      method: "POST"
+    });
 
-  const data = await res.json();
-  jobId = data.job_id;
+    const data = await res.json();
+    jobId = data.job_id;
 
-  checkStatus();
+    checkStatus();
+  } catch (err) {
+    setStatus("❌ Failed to start job");
+    console.error(err);
+  }
 }
 
-async function checkStatus() {
+function checkStatus() {
   const interval = setInterval(async () => {
-    const res = await fetch(`${API_URL}/status/${jobId}`);
-    const data = await res.json();
+    try {
+      const res = await fetch(`${API_URL}/status/${jobId}`);
+      const data = await res.json();
 
-    document.getElementById("status").innerText = data.status;
+      setStatus("Status: " + data.status);
 
-    if (data.status === "done") {
-      clearInterval(interval);
+      if (data.status === "done") {
+        clearInterval(interval);
 
-      const resultRes = await fetch(`${API_URL}/result/${jobId}`);
-      const resultData = await resultRes.json();
+        const resultRes = await fetch(`${API_URL}/result/${jobId}`);
+        const resultData = await resultRes.json();
 
-      window.open(resultData.download_url);
+        setStatus("✅ Done! Opening result...");
+        window.open(resultData.download_url);
+      }
+
+      if (data.status === "error") {
+        clearInterval(interval);
+        setStatus("❌ Error: " + data.result);
+      }
+
+    } catch (err) {
+      console.error(err);
     }
-
-    if (data.status === "error") {
-      clearInterval(interval);
-      document.getElementById("status").innerText = "Error: " + data.result;
-    }
-
   }, 2000);
 }
+
+function setStatus(msg) {
+  document.getElementById("status").innerText = msg;
+}
 </script>
+
+</body>
+</html>
